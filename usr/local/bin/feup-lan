@@ -14,16 +14,18 @@
 #   2) /usr/local/bin/feup-lan: Main script (code) of the tool.
 #   3) /etc/init.d/feup-lan: The control script for the feup-lan 
 #       tool (ran at startup, suspend, hibernation, resume, etc. events).
-#   4) /etc/pm/sleep.d/feup-lan: The control script (suspend or resume) for the 
-#       feup-lan tool.
 
 # paths of files handled by the script
-#NW_INTERFACES_FILE=~/.feup-lan/interfaces
-#NW_INTERFACES_FILE_TMP=~/.feup-lan/interfaces.tmp
 NW_INTERFACES_FILE=/etc/network/interfaces
 NW_INTERFACES_FILE_TMP=/etc/network/interfaces.tmp
 FEUP_LAN_CONF_FILE=~/.feup-lan/feup-lan.conf
 SYS_CLASS_NET=/sys/class/net/
+
+#NW_INTERFACES_FILE=~/.feup-lan/interfaces
+#NW_INTERFACES_FILE_TMP=~/.feup-lan/interfaces.tmp
+
+# awk script for NW_INTERFACES_FILE manipulation
+AWK_INTERFACES_SCRIPT=~/.feup-lan/changeInterface.awk
 
 # config entries for the ~/.feup-lan/feup-lan.conf file
 FEUP_LAN_CONF_INTERFACE="Interface"
@@ -133,7 +135,7 @@ then
         dns_arg=$(echo -e "${feup_lan_configs[$FEUP_LAN_CONF_DNS]}" | sed -n -e 's/ /:/pg')
         echo -e $dns_arg
 
-        awk -f changeInterface.awk $NW_INTERFACES_FILE device=${feup_lan_configs[$FEUP_LAN_CONF_INTERFACE]} address=${feup_lan_configs[$FEUP_LAN_CONF_IP]} gateway=${feup_lan_configs[$FEUP_LAN_CONF_GATEWAY]} netmask=${feup_lan_configs[$FEUP_LAN_CONF_NETMASK]} dns=$dns_arg > $NW_INTERFACES_FILE_TMP && mv $NW_INTERFACES_FILE_TMP $NW_INTERFACES_FILE
+        awk -f $AWK_INTERFACES_SCRIPT $NW_INTERFACES_FILE device=${feup_lan_configs[$FEUP_LAN_CONF_INTERFACE]} address=${feup_lan_configs[$FEUP_LAN_CONF_IP]} gateway=${feup_lan_configs[$FEUP_LAN_CONF_GATEWAY]} netmask=${feup_lan_configs[$FEUP_LAN_CONF_NETMASK]} dns=$dns_arg > $NW_INTERFACES_FILE_TMP && mv $NW_INTERFACES_FILE_TMP $NW_INTERFACES_FILE
         rm $NW_INTERFACES_FILE_TMP
 
     else
