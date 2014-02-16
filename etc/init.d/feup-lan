@@ -17,6 +17,17 @@
 #   4) /etc/pm/sleep.d/feup-lan: The control script (suspend or resume) for the 
 #       feup-lan tool.
 
+### BEGIN INIT INFO
+# Provides:             feup-lan
+# Required-Start:       $network $syslog $xfs
+# Required-Stop:        $network $syslog $xfs
+# Default-Start:        2 3 4 5
+# Default-Stop:         0 1 6
+# Short-Description:    Apply FEUP LAN's configs.
+# Description:          Waits for activity on a designated interface and asks the 
+#                       user if FEUP LAN's configurations should be applied.
+### END INIT INFO
+
 # CREATE: 'sudo nano /etc/init.d/feup-lan', 
 # 'sudo chmod +x /etc/init.d/feup-lan'
 # ADD TO STARTUP: 'sudo update-rc.d feup-lan defaults'
@@ -28,7 +39,7 @@ case "$1" in
     echo "Starting script feup-lan..."
 
     # start the feup-lan script (located on /usr/local/bin/)
-    /usr/local/sbin/feup-lan &
+    /usr/local/bin/feup-lan &
 
     echo "...done!"
 
@@ -50,7 +61,7 @@ case "$1" in
     echo "Restarting script feup-lan..."
 
     kill $(pgrep feup-lan)
-    /usr/local/sbin/feup-lan &
+    /usr/local/bin/feup-lan &
 
     echo "...done!"
 
