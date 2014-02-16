@@ -1,0 +1,57 @@
+#!/bin/sh
+
+# simple script for installing the feup-lan tool. run it as sudo, i.e.:
+# 'sudo sh feup-lan.install'
+
+NW_INTERFACES_DIR=/etc/network
+FEUP_LAN_CONF_DIR=~/.feup-lan
+MAIN_SCRIPT_DIR=/usr/local/bin
+INIT_SCRIPT_DIR=/etc/init.d
+
+NW_INTERFACES_FILE=$NW_INTERFACES_DIR/interfaces
+FEUP_LAN_CONF_FILE=$FEUP_LAN_CONF_DIR/feup-lan.conf
+
+# create ~/.feup-lan/ dir and copy default configurations and awk scripts
+echo -e "copying files to "$FEUP_LAN_CONF_DIR" dir..."
+
+if [ ! -d "$FEUP_LAN_CONF_DIR" ]; then
+
+    echo -e $FEUP_LAN_CONF_DIR" directory not found. creating it..."
+    mkdir -p $FEUP_LAN_CONF_DIR
+
+fi
+
+cp -r .feup-lan/* $FEUP_LAN_CONF_DIR
+
+echo -e "...done!"
+
+# copy the feup-lan main script to MAIN_SCRIPT_DIR
+echo -e "copying files to "$MAIN_SCRIPT_DIR" dir..."
+
+if [ ! -d "$MAIN_SCRIPT_DIR" ]; then
+
+    echo -e $MAIN_SCRIPT_DIR" directory not found. creating it..."
+    mkdir -p $MAIN_SCRIPT_DIR
+
+fi
+
+cp -r usr/local/bin/* $MAIN_SCRIPT_DIR
+
+# make sure it is executable
+chmod +x $MAIN_SCRIPT_DIR/feup-lan
+
+echo -e "...done!"
+
+# finally, copy the feup-lan startup script to INIT_SCRIPT_DIR
+echo -e "copying files to "$INIT_SCRIPT_DIR" dir..."
+
+cp -r etc/init.d/* $INIT_SCRIPT_DIR
+
+# make sure it is executable
+chmod +x $INIT_SCRIPT_DIR/feup-lan
+
+# enable it on startup (lowest priority)
+update-rc.d feup-lan defaults 99
+
+echo -e "...done!"
+
