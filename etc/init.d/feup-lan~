@@ -1,0 +1,69 @@
+#!/bin/sh
+# /etc/init.d/feup-lan
+#
+# Base script from http://www.debian-administration.org/articles/28
+
+# Upon startup, it waits for activity on a designated interface (specified in a 
+# ~/.feup-lan/feup-lan.conf file) and asks the user if FEUP LAN's configurations 
+# should be applied or not. For now it is finite, as it doesn't run as a daemon, 
+# only being called upon startup, or resume after suspension or hibernation.
+
+# Requires the following files:
+#   1) ~/.feup-lan/feup-lan.conf: Used to store your FEUP LAN's eth0 iface 
+#       and DNS configurations (among others).
+#   2) /usr/local/bin/feup-lan: Main script (code) of the tool.
+#   3) /etc/init.d/feup-lan: The control script (startup) for the feup-lan 
+#       tool.
+#   4) /etc/pm/sleep.d/feup-lan: The control script (suspend or resume) for the 
+#       feup-lan tool.
+
+# CREATE: 'sudo nano /etc/init.d/feup-lan', 
+# 'sudo chmod +x /etc/init.d/feup-lan'
+# ADD TO STARTUP: 'sudo update-rc.d feup-dns defaults'
+
+case "$1" in
+
+  start)
+
+    echo "Starting script feup-lan..."
+
+    # start the feup-lan script (located on /usr/local/bin/)
+    /usr/local/sbin/feup-lan &
+
+    echo "...done!"
+
+    ;;
+
+  stop)
+
+    echo "Stopping script feup-lan..."
+
+    # kill ALL feup-lan instances
+    kill $(pgrep feup-lan)
+
+    echo "...done!"
+
+    ;;
+
+  restart)
+
+    echo "Restarting script feup-lan..."
+
+    kill $(pgrep feup-lan)
+    /usr/local/sbin/feup-lan &
+
+    echo "...done!"
+
+    ;;
+
+  *)
+
+    echo "Usage: /etc/init.d/feup-lan {start|stop|restart}"
+
+    exit 1
+
+    ;;
+
+esac
+ 
+exit 0

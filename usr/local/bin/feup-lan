@@ -1,0 +1,197 @@
+#!/bin/bash
+
+# The basic idea is to automatically choose the ethx interface and DNS 
+# parameters for FEUP's LAN (as it doesn't offer DHCP), if the laptop detects 
+# it is on FEUP's network. The script shall run continuously and regularly, so 
+# that the PC automatically configures to FEUP LAN even upon frequent 
+# connect/disconnect events (e.g. going to class, meetings, etc.). However, 
+# these checks must not interfere with the user experience while using the 
+# network.
+
+# Requires the following files:
+#   1) ~/.feup-lan/feup-lan.conf: Used to store your FEUP LAN's iface 
+#       and DNS configurations (among others).
+#   2) /usr/local/bin/feup-lan: Main script (code) of the tool.
+#   3) /etc/init.d/feup-lan: The control script for the feup-lan 
+#       tool (ran at startup, suspend, hibernation, resume, etc. events).
+#   4) /etc/pm/sleep.d/feup-lan: The control script (suspend or resume) for the 
+#       feup-lan tool.
+
+# paths of files handled by the script
+#NW_INTERFACES_FILE=~/.feup-lan/interfaces
+#NW_INTERFACES_FILE_TMP=~/.feup-lan/interfaces.tmp
+NW_INTERFACES_FILE=/etc/network/interfaces
+NW_INTERFACES_FILE_TMP=/etc/network/interfaces.tmp
+FEUP_LAN_CONF_FILE=~/.feup-lan/feup-lan.conf
+SYS_CLASS_NET=/sys/class/net/
+
+# config entries for the ~/.feup-lan/feup-lan.conf file
+FEUP_LAN_CONF_INTERFACE="Interface"
+FEUP_LAN_CONF_IP="IpAddress"
+FEUP_LAN_CONF_NETMASK="NetMask"
+FEUP_LAN_CONF_GATEWAY="Gateway"
+FEUP_LAN_CONF_DNS="DNSServers"
+
+# config entries for the /etc/network/interfaces file
+NW_IFACE_PREFIX="iface"
+NW_IFACE_SUFFIX="inet static"
+NW_ADDRESS="address"
+NW_NETMASK="netmask"
+NW_GATEWAY="gateway"
+NW_DNS="dns-nameservers"
+
+# quick lookup table for correspondence between ~/.feup-lan/feup-lan.conf and 
+# /etc/network/interfaces configs
+declare -A feup_nw_configs_mapping
+
+feup_nw_configs_mapping[$FEUP_LAN_CONF_INTERFACE]=$NW_IFACE_PREFIX
+feup_nw_configs_mapping[$FEUP_LAN_CONF_IP]=$NW_ADDRESS
+feup_nw_configs_mapping[$FEUP_LAN_CONF_NETMASK]=$NW_NETMASK
+feup_nw_configs_mapping[$FEUP_LAN_CONF_GATEWAY]=$NW_GATEWAY
+feup_nw_configs_mapping[$FEUP_LAN_CONF_DNS]=$NW_DNS
+
+# create a security copy of /etc/network/interfaces first, just in case
+cp /etc/network/interfaces /etc/network/interfaces.bak
+
+# read FEUP_LAN_CONF_FILE and save the network configs in the feup_lan_configs 
+# array
+
+echo -e "reading "$FEUP_LAN_CONF_FILE" file configurations into memory..."
+
+declare -A feup_lan_configs
+
+# as this is also kind of a awk, sed and regex tutorial for myself:
+#
+# sed -n -e '/^#/!s/^.*'${key}' *//p' $FEUP_LAN_CONF_FILE
+#
+#   1) -n means not to print anything by default
+#   2) -e is followed by a sed command
+#   3) /^#/! is a regex leading sed to ignore ('!') lines starting ('^') with 
+#       the '#' character, i.e. comments.
+#   4) s/^.*'${key}' *//p : applies the pattern replacement command 's', 
+#       replacing the text of a line containing ${key} (e.g. 'Interface'), 
+#       from the start of the line ('^'), including any intermediate characters 
+#       ('.*') until the final white space after ${key} (' *'). This is replaced 
+#       with nothing (the void between the '/', i.e. '//').
+#   5) 'p' : the final 'p' means to print the transformed line.
+for key in ${!feup_nw_configs_mapping[@]}; do
+    feup_lan_configs[$key]=$(sed -n -e '/^#/!s/^.*'${key}' *//p' $FEUP_LAN_CONF_FILE)
+    echo -e '\t'${key} ${feup_lan_configs[${key}]}
+done
+
+echo -e "...done."
+
+# wait until there's activity on /sys/class/net/[INTERFACE]
+if [ ! -d "$SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}" ]; then
+
+    echo -e $SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}" 
+        directory not found. Interface 
+        "${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}" seems to be down."
+    exit 0
+
+fi
+
+# check the /sys/class/net/[INTERFACE] carrier and operstate files ('1' and 
+# 'up' means the [INTERFACE] is active)
+carrier=$(grep -w "0" $SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}/carrier)
+operstate=$(grep -w "'down\|unknown'" $SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}/operstate)
+
+while true; do
+
+    if [ $(grep -w "0" $SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}/carrier) -eq 0 ] || [ $(grep -w "'down\|unknown'" $SYS_CLASS_NET${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}/operstate) -eq 0 ];
+    then
+
+        echo -e "interface "${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}" is inactive. trying again in 5 seconds."
+        sleep 5
+
+    else
+
+        break
+
+    fi
+
+done
+
+# pop the question...
+zenity --question --title="FEUP LAN Settings" --text="Activity in "${feup_lan_configs[${FEUP_LAN_CONF_INTERFACE}]}" detected. Would you like to load FEUP LAN's settings?"
+
+if [ $? -eq 0 ];
+then
+
+    # replace/append the configs on the current /etc/network/interfaces file 
+    # with those in feup_lan_configs. in this context 'replace' means replacing 
+    # the values of each NW_* option UNDER the interface corresponding to the 
+    # FEUP_LAN_CONF_INTERFACE option in FEUP_LAN_CONF_FILE (and nothing else).
+
+    if grep --quiet "^$NW_IFACE_PREFIX ${feup_lan_configs[$FEUP_LAN_CONF_INTERFACE]} $NW_IFACE_SUFFIX" $NW_INTERFACES_FILE;
+    then
+
+        # the pattern 'iface ethx inet static' 
+        # exists in the file, replace the appropriate config values.
+
+        # just a little preparation for the 'dns' argument
+        dns_arg=$(echo -e "${feup_lan_configs[$FEUP_LAN_CONF_DNS]}" | sed -n -e 's/ /:/pg')
+        echo -e $dns_arg
+
+        awk -f changeInterface.awk $NW_INTERFACES_FILE device=${feup_lan_configs[$FEUP_LAN_CONF_INTERFACE]} address=${feup_lan_configs[$FEUP_LAN_CONF_IP]} gateway=${feup_lan_configs[$FEUP_LAN_CONF_GATEWAY]} netmask=${feup_lan_configs[$FEUP_LAN_CONF_NETMASK]} dns=$dns_arg > $NW_INTERFACES_FILE_TMP && mv $NW_INTERFACES_FILE_TMP $NW_INTERFACES_FILE
+        rm $NW_INTERFACES_FILE_TMP
+
+    else
+
+        # if the pattern 'iface ' feup_lan_configs[FEUP_LAN_CONF_INTERFACE] 
+        # isn't present on the file, just append the configs to the 
+        # /etc/network/interfaces file.
+
+        # first line 'iface (...)' is special.
+        echo -e '' >> $NW_INTERFACES_FILE
+        echo -e $NW_IFACE_PREFIX ${feup_lan_configs[$FEUP_LAN_CONF_INTERFACE]} $NW_IFACE_SUFFIX >> $NW_INTERFACES_FILE
+
+        # for the following lines, just add the contents of the 
+        # feup_lan_configs array
+        for key in ${!feup_lan_configs[@]}; do
+
+            if [ "$key" != "$FEUP_LAN_CONF_INTERFACE" ]
+            then
+                echo -e '\t'${feup_nw_configs_mapping[$key]} ${feup_lan_configs[$key]} >> $NW_INTERFACES_FILE
+            fi
+
+        done
+
+    fi
+
+    # check the success of the alterations by pinging FEUP's gateway IP 
+    # address and www.fe.up.pt (for DNS purposes)
+    # TODO: the test of www.fe.up.pt is too specific, should be changed in 
+    # the future (when a general purpose tool is built, if ever...)
+
+    # reload networking settings
+    /etc/init.d/networking restart
+
+    # check if you can ping the LAN gateway as defined in 
+    # ~/.feup-lan/feup-lan.conf
+    ping -q -c5 ${feup_lan_configs[${FEUP_LAN_CONF_GATEWAY}]} > /dev/null
+
+    if [ $? -eq 0 ];
+    then
+
+        echo -e "can ping FEUP LAN's gw: "${feup_lan_configs[${FEUP_LAN_CONF_GATEWAY}]}
+
+        zenity --info --title="FEUP LAN Settings" --text="FEUP LAN's settings successful!"
+
+    else
+        echo "cannot ping FEUP LAN's gw: "${feup_lan_configs[${FEUP_LAN_CONF_GATEWAY}]}". rolling back to /etc/network/interfaces.bak..."
+
+        # rollback network configurations
+        cp /etc/network/interfaces.default /etc/network/interfaces
+        /etc/init.d/networking restart
+
+        zenity --error --title="FEUP LAN Settings" --text="Error in FEUP LAN's. Rolled back to previous configs."
+    fi
+
+else
+
+    zenity --error --title="FEUP LAN Settings" --text="Error in FEUP LAN's setup. Did not apply any changes to "$NW_INTERFACES_FILE"."
+
+fi
+
+exit 0
