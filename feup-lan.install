@@ -5,7 +5,7 @@
 
 NW_INTERFACES_DIR=/etc/network
 FEUP_LAN_CONF_DIR=~/.feup-lan
-MAIN_SCRIPT_DIR=/usr/local/bin
+MAIN_SCRIPT_DIR=/usr/local/sbin
 INIT_SCRIPT_DIR=/etc/init.d
 
 NW_INTERFACES_FILE=$NW_INTERFACES_DIR/interfaces

@@ -19,7 +19,7 @@
 
 ### BEGIN INIT INFO
 # Provides:             feup-lan
-# Required-Start:       $network $syslog $xfs
+# Required-Start:       $all
 # Required-Stop:        $network $syslog $xfs
 # Default-Start:        2 3 4 5
 # Default-Stop:         0 1 6
@@ -39,7 +39,7 @@ case "$1" in
     echo "Starting script feup-lan..."
 
     # start the feup-lan script (located on /usr/local/bin/)
-    /usr/local/bin/feup-lan &
+    /usr/local/sbin/feup-lan &
 
     echo "...done!"
 
@@ -61,7 +61,7 @@ case "$1" in
     echo "Restarting script feup-lan..."
 
     kill $(pgrep feup-lan)
-    /usr/local/bin/feup-lan &
+    /usr/local/sbin/feup-lan &
 
     echo "...done!"
 
