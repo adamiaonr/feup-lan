@@ -50,7 +50,13 @@ case "$1" in
     echo "Stopping script feup-lan..."
 
     # kill ALL feup-lan instances
-    kill $(pgrep feup-lan)
+    kill $(pgrep /usr/local/sbin/feup-lan)
+
+    # copy .default configurations to /etc/network/interfaces
+    cp /etc/network/interfaces.default /etc/network/interfaces
+
+    # restart Linux networking
+    /etc/init.d/networking restart
 
     echo "...done!"
 
@@ -60,7 +66,7 @@ case "$1" in
 
     echo "Restarting script feup-lan..."
 
-    kill $(pgrep feup-lan)
+    kill $(pgrep /usr/local/sbin/feup-lan)
     /usr/local/sbin/feup-lan &
 
     echo "...done!"
